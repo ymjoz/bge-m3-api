@@ -4,6 +4,7 @@
 ```sh
 cd ~/dev/bge-m3-api
 docker build -t tom/bge-m3-api:1.0.1 .
+docker build -t tom/bge-m3-faiss:1.0 .
 ```
 
 

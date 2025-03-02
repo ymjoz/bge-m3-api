@@ -2,4 +2,5 @@ sentence-transformers
 fastapi
 uvicorn
 torch
-numpy<2  
+numpy<2 
+faiss-cpu
