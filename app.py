@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from sentence_transformers import SentenceTransformer
 from pydantic import BaseModel
-from typing import List
 import faiss
 import numpy as np
 
@@ -14,51 +13,45 @@ try:
 except Exception as e:
     raise RuntimeError(f"Failed to load model from {model_path}: {str(e)}")
 
-
-# 定義請求體格式
 class TextInput(BaseModel):
     text: str
 
-class TextListInput(BaseModel):
-    texts: List[str]  # 修正 FastAPI 解析 JSON 問題
-
+class SearchQuery(BaseModel):
+    query: str
+    top_k: int = 5
 
 # 設置 FAISS 索引 (L2 距離)
 embedding_dim = 1024  # bge-m3 產生 1024 維的向量
 index = faiss.IndexFlatL2(embedding_dim)  # L2 距離 (歐幾里得距離)
-vector_store = {}  # 存放 ID -> Text 對應關係 (簡單示範)
+vector_store = {}  # 存放 ID -> Text 對應關係 (僅作簡單示範)
 
 
 @app.post("/embed")
 async def get_embedding(input: TextInput):
-    """獲取文本的嵌入向量"""
-    embedding = model.encode(input.text).astype(np.float32).tolist()  # 確保是 float32
+    embedding = model.encode(input.text).tolist()
     return {"embedding": embedding}
 
-
 @app.post("/add/")
-async def add_text(data: TextListInput):
+async def add_text(texts: list[str]):
     """新增文本到 FAISS 向量庫"""
     global index
-    texts = data.texts  # 解析 JSON
-    embeddings = model.encode(texts).astype(np.float32)  # 確保是 float32
+    embeddings = model.encode(texts)
 
     start_id = len(vector_store)
     for i, text in enumerate(texts):
         vector_store[start_id + i] = text  # 儲存文本
+    index.add(np.array(embeddings, dtype=np.float32))  # 新增到 FAISS
 
-    index.add(embeddings)  # 新增到 FAISS
     return {"message": "Added", "count": len(texts)}
 
-
 @app.post("/search/")
-async def search_text(query: str, top_k: int = 5):
+async def search_text(search_query: SearchQuery):
     """執行相似性搜索"""
     if index.ntotal == 0:
         return {"error": "FAISS index is empty"}
 
-    query_embedding = model.encode([query]).astype(np.float32)  # 確保是 float32
-    distances, indices = index.search(query_embedding, top_k)
+    query_embedding = model.encode([search_query.query])
+    distances, indices = index.search(np.array(query_embedding, dtype=np.float32), search_query.top_k)
 
     results = []
     for i in range(len(indices[0])):
@@ -66,8 +59,7 @@ async def search_text(query: str, top_k: int = 5):
         if idx in vector_store:
             results.append({"text": vector_store[idx], "distance": float(distances[0][i])})
 
-    return {"query": query, "results": results}
-
+    return {"query": search_query.query, "results": results}
 
 if __name__ == "__main__":
     import uvicorn
