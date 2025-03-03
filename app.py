@@ -38,6 +38,10 @@ async def get_embedding(input: TextInput):
     embedding = model.encode(input.text).astype(np.float32).tolist()  # 確保是 float32
     return {"embedding": embedding}
 
+@app.get("/index_info")
+async def get_index_info():
+    """獲取 FAISS 索引資訊"""
+    return {"total_vectors": index.ntotal, "d": index.d}
 
 @app.post("/add/")
 async def add_text(data: TextListInput):
