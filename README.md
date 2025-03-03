@@ -1,24 +1,19 @@
 # Test BGE-M3 embedding
 
-
+### build docker image
 ```sh
 cd ~/dev/bge-m3-api
 docker build -t tom/bge-m3-api:1.0.1 .
 docker build -t tom/bge-m3-faiss:1.2 .
 ```
 
-
+### 容器化執行
 ```sh
-docker run -d --gpus device=0 \
-	-p 11436:8000 \
-	--name bge-m3-tom \
-	tom/bge-m3-api:1.0.1
-
 docker run -d --gpus device=0 \
 	-p 11437:8000 \
 	--name bge-m3-tom \
-	tom/bge-m3-faiss:1.3
-
+	-v /home/B30098/dev/bge-m3-api/vector_data:/app/vector_data \
+	tom/bge-m3-faiss:1.4
 ```
 
 ### 測試/add API

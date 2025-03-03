@@ -4,6 +4,10 @@ from pydantic import BaseModel
 from typing import List
 import faiss
 import numpy as np
+import os
+import json
+import pickle
+from pathlib import Path
 
 app = FastAPI()
 
@@ -14,6 +18,32 @@ try:
 except Exception as e:
     raise RuntimeError(f"Failed to load model from {model_path}: {str(e)}")
 
+# 設定儲存目錄
+PERSISTENCE_DIR = "/app/vector_data"
+INDEX_FILE = os.path.join(PERSISTENCE_DIR, "faiss_index.bin")
+STORE_FILE = os.path.join(PERSISTENCE_DIR, "vector_store.pkl")
+
+# 確保目錄存在
+Path(PERSISTENCE_DIR).mkdir(parents=True, exist_ok=True)
+
+# 函數：保存索引和向量存儲
+def save_data():
+    """保存 FAISS 索引和向量存儲到磁碟"""
+    faiss.write_index(index, INDEX_FILE)
+    with open(STORE_FILE, 'wb') as f:
+        pickle.dump(vector_store, f)
+    return {"status": "saved", "vectors": index.ntotal}
+
+# 函數：載入索引和向量存儲
+def load_data():
+    """從磁碟載入 FAISS 索引和向量存儲"""
+    global index, vector_store
+    if os.path.exists(INDEX_FILE) and os.path.exists(STORE_FILE):
+        index = faiss.read_index(INDEX_FILE)
+        with open(STORE_FILE, 'rb') as f:
+            vector_store = pickle.load(f)
+        return True
+    return False
 
 # 定義請求體格式
 class TextInput(BaseModel):
@@ -28,9 +58,15 @@ class SearchInput(BaseModel):
 
 # 設置 FAISS 索引 (L2 距離)
 embedding_dim = 1024  # bge-m3 產生 1024 維的向量
-index = faiss.IndexFlatL2(embedding_dim)  # L2 距離 (歐幾里得距離)
+index = None
 vector_store = {}  # 存放 ID -> Text 對應關係 (簡單示範)
 
+# 嘗試載入之前儲存的資料，如果失敗則建立新索引
+if not load_data():
+    index = faiss.IndexFlatL2(embedding_dim)  # L2 距離 (歐幾里得距離)
+    print("建立新的 FAISS 索引")
+else:
+    print(f"從檔案載入了 {index.ntotal} 個向量")
 
 @app.post("/embed")
 async def get_embedding(input: TextInput):
@@ -43,6 +79,7 @@ async def get_index_info():
     """獲取 FAISS 索引資訊"""
     return {"total_vectors": index.ntotal, "d": index.d}
 
+# 修改 add_text 函數，新增保存功能
 @app.post("/add/")
 async def add_text(data: TextListInput):
     """新增文本到 FAISS 向量庫"""
@@ -55,8 +92,11 @@ async def add_text(data: TextListInput):
         vector_store[start_id + i] = text  # 儲存文本
 
     index.add(embeddings)  # 新增到 FAISS
-    return {"message": "Added", "count": len(texts)}
 
+    # 新增資料後保存到磁碟
+    save_data()
+    
+    return {"message": "Added and saved", "count": len(texts)}
 
 @app.post("/search/")
 async def search_text(data: SearchInput):
@@ -76,6 +116,19 @@ async def search_text(data: SearchInput):
     return {"query": data.query, "results": results}
 
 
+# 新增手動保存和載入的 API
+@app.post("/save")
+async def api_save_data():
+    """手動將向量資料保存到磁碟"""
+    return save_data()
+
+@app.post("/load")
+async def api_load_data():
+    """手動從磁碟載入向量資料"""
+    success = load_data()
+    if success:
+        return {"status": "loaded", "vectors": index.ntotal}
+    return {"status": "failed", "reason": "Files not found"}
 
 
 if __name__ == "__main__":
