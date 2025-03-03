@@ -11,9 +11,10 @@ docker build -t tom/bge-m3-faiss:1.2 .
 ```sh
 docker run -d --gpus device=0 \
 	-p 11437:8000 \
-	--name bge-m3-tom \
+	--name bge-m3-tom-v1 \
+	-v /home/B30098/llm/models/bge-m3:/app/models/bge-m3 \
 	-v /home/B30098/dev/bge-m3-api/vector_data:/app/vector_data \
-	tom/bge-m3-faiss:1.4
+	tom/bge-m3-faiss:1.5
 ```
 
 ### 測試/add API

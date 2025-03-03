@@ -28,7 +28,7 @@ RUN python3.9 -m pip install --no-cache-dir torch==2.2.0 -f https://download.pyt
     python3.9 -m pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
-COPY models/bge-m3 /app/models/bge-m3
+# COPY models/bge-m3 /app/models/bge-m3 
 
 EXPOSE 8000
 CMD ["/usr/bin/python3.9", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
